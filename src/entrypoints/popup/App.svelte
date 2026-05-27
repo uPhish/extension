@@ -4,7 +4,7 @@
 
   let settings = { blockingEnabled: true, passwordBannerEnabled: true };
   let allowlist = [];
-  let newDomain = '';
+  let newUrl = '';
   let activeTab = 'features';
 
   onMount(async () => {
@@ -18,17 +18,29 @@
     await browser.storage.local.set({ settings });
   }
 
-  async function removeFromAllowlist(domain) {
-    allowlist = allowlist.filter(d => d !== domain);
+  async function removeFromAllowlist(url) {
+    allowlist = allowlist.filter(d => d !== url);
     await browser.storage.local.set({ allowlist });
   }
 
   async function addToAllowlist() {
-    const d = newDomain.trim().replace(/^www\./, '').toLowerCase();
-    if (!d || allowlist.includes(d)) return;
-    allowlist = [...allowlist, d];
+    let input = newUrl.trim();
+    if (!input) return;
+    try {
+      new URL(input);
+    } catch {
+      try {
+        input = 'https://' + input;
+        new URL(input);
+      } catch {
+        return;
+      }
+    }
+    const normalized = (new URL(input)).href;
+    if (allowlist.includes(normalized)) return;
+    allowlist = [...allowlist, normalized];
     await browser.storage.local.set({ allowlist });
-    newDomain = '';
+    newUrl = '';
   }
 
   function handleKeydown(e) {
@@ -44,12 +56,15 @@
       if (!tab?.url) { reportState = 'error'; return; }
       const url = new URL(tab.url);
       const domain = url.hostname.replace(/^www\./, '');
-      const params = new URLSearchParams({
-        domain,
+      const body = JSON.stringify({
         url: tab.url,
         useragent: navigator.userAgent,
       });
-      const res = await fetch(`https://api.uphish.com/threatdb/report?${params}`, { method: 'POST' });
+      const res = await fetch('https://api.uphish.com/threatdb/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
       reportState = res.ok ? 'done' : 'error';
     } catch {
       reportState = 'error';
@@ -119,11 +134,11 @@
   {#if activeTab === 'allowlist'}
     <div class="section">
       <div class="add-row">
-        <input
+          <input
           class="domain-input"
           type="text"
-          placeholder="example.com"
-          bind:value={newDomain}
+          placeholder="https://example.com/page"
+          bind:value={newUrl}
           on:keydown={handleKeydown}
         />
       </div>
@@ -132,10 +147,10 @@
         <p class="empty">No domains allowed yet.</p>
       {:else}
         <ul class="list">
-          {#each allowlist as domain}
+          {#each allowlist as url}
             <li class="list-item">
-              <span class="list-domain">{domain}</span>
-              <button class="remove-btn" on:click={() => removeFromAllowlist(domain)} aria-label="Remove">✕</button>
+              <span class="list-domain">{url}</span>
+              <button class="remove-btn" on:click={() => removeFromAllowlist(url)} aria-label="Remove">✕</button>
             </li>
           {/each}
         </ul>

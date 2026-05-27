@@ -1,18 +1,26 @@
 const threatCache = {};
 const CACHE_TTL_MS = 5 * 60 * 1000; 
 
-async function isThreat(hostname) {
-  const cached = threatCache[hostname];
-  if (cached && Date.now() < cached.expiresAt) return cached.blocked;
+async function isThreat(fullUrl) {
+  const cached = threatCache[fullUrl];
+  if (cached && Date.now() < cached.expiresAt) return { blocked: cached.blocked, reportedBy: cached.reportedBy };
 
   try {
-    const res = await fetch(`https://api.uphish.com/threatdb/check/${encodeURIComponent(hostname)}`);
-    const text = (await res.text()).trim();
-    const blocked = text.toLowerCase() === 'true';
-    threatCache[hostname] = { blocked, expiresAt: Date.now() + CACHE_TTL_MS };
-    return blocked;
+    const urlWithParam = `https://api.uphish.com/threatdb/check?url=${encodeURIComponent(fullUrl)}`;
+    const res = await fetch(urlWithParam, { method: 'POST' });
+    if (!res.ok) return { blocked: false, reportedBy: null };
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      return { blocked: false, reportedBy: null };
+    }
+    const blocked = !!data.is_blocked;
+    const reportedBy = typeof data.reported_by === 'string' ? data.reported_by : null;
+    threatCache[fullUrl] = { blocked, reportedBy, expiresAt: Date.now() + CACHE_TTL_MS };
+    return { blocked, reportedBy };
   } catch {
-    return false;
+    return { blocked: false, reportedBy: null };
   }
 }
 
@@ -24,18 +32,20 @@ export default defineBackground(() => {
       const url = new URL(details.url);
       if (!url.protocol.startsWith('http')) return;
       const hostname = url.hostname.replace(/^www\./, '');
+      const fullUrl = details.url;
 
       const { allowlist = [], tempAllowed = {}, settings = {} } = await browser.storage.local.get(['allowlist', 'tempAllowed', 'settings']);
 
       if (settings.blockingEnabled === false) return;
-      if (allowlist.includes(hostname)) return;
-      if (tempAllowed[hostname] && Date.now() < tempAllowed[hostname]) return;
+      if (allowlist.includes(fullUrl)) return;
+      if (tempAllowed[fullUrl] && Date.now() < tempAllowed[fullUrl]) return;
 
-      const blocked = await isThreat(hostname);
-      if (!blocked) return;
+      const result = await isThreat(fullUrl);
+      if (!result.blocked) return;
 
+      const reportedParam = result.reportedBy ? `&reported_by=${encodeURIComponent(result.reportedBy)}` : '';
       const blockPage = browser.runtime.getURL(
-        `/block.html?domain=${encodeURIComponent(hostname)}&url=${encodeURIComponent(details.url)}`
+        `/block.html?domain=${encodeURIComponent(hostname)}&url=${encodeURIComponent(details.url)}${reportedParam}`
       );
       await browser.tabs.update(details.tabId, { url: blockPage });
     } catch (_) {}

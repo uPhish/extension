@@ -3,19 +3,24 @@
 
   const params = new URLSearchParams(location.search);
   const domain = params.get('domain') || 'this site';
+  const originalUrl = params.get('url') || '#';
+  const reportedBy = params.get('reported_by') || '';
 
   let dontBlockAgain = false;
+  let detailsVisible = false;
 
   function goBack() { history.back(); }
+
+  function showDetails() { detailsVisible = true; }
 
   async function continueToSite() {
     const original = params.get('url');
     if (!original) return;
 
     if (dontBlockAgain) {
-      await browser.runtime.sendMessage({ type: 'ALLOWLIST_DOMAIN', domain });
+      await browser.runtime.sendMessage({ type: 'ALLOWLIST_DOMAIN', domain: original });
     } else {
-      await browser.runtime.sendMessage({ type: 'TEMP_ALLOW_DOMAIN', domain });
+      await browser.runtime.sendMessage({ type: 'TEMP_ALLOW_DOMAIN', domain: original });
     }
 
     location.href = original;
@@ -29,25 +34,40 @@
   </header>
 
   <main class="content">
-    <h1>Website blocked due to malicious activity</h1>
+    <h1 class="deceptive">Deceptive site ahead</h1>
 
     <p class="blocked-line">
-      Website blocked: <strong class="domain">{domain}</strong>
+      Website blocked: <strong class="domain">{originalUrl}</strong>
     </p>
     <p class="blocked-desc">
-      uPhish blocked this website because it may contain malicious activity.
+      uPhish blocked this page because it may trick you into doing something dangerous like installing software or revealing personal information like passwords or credit cards.
     </p>
-    <p class="warning">We strongly recommend you do not continue.</p>
 
     <div class="actions">
       <button class="btn btn-back" on:click={goBack}>Go Back</button>
-      <button class="btn btn-continue" on:click={continueToSite}>Continue to Site</button>
+      {#if !detailsVisible}
+        <button class="btn btn-details" on:click={showDetails}>See details</button>
+      {/if}
     </div>
 
-    <label class="checkbox-label">
-      <input type="checkbox" bind:checked={dontBlockAgain} />
-      Do not block this site again.
-    </label>
+    {#if detailsVisible}
+      <div class="details-box">
+        {#if reportedBy}
+          <p class="reported-by">Flagged by: <strong>{reportedBy}</strong></p>
+        {/if}
+        <p class="info">
+          <strong class="domain">{domain}</strong> 
+          has been reported as a deceptive site. You can ignore the risk and <a class="continue-link" href={originalUrl} on:click|preventDefault={continueToSite}>go to this unsafe site</a>. 
+          Learn more about deceptive sites and phishing at 
+          <a href="https://www.antiphishing.org" target="_blank" rel="noopener noreferrer">www.antiphishing.org</a>.
+        </p>
+
+        <label class="checkbox-label">
+          <input type="checkbox" bind:checked={dontBlockAgain} />
+          Do not block this site again.
+        </label>
+      </div>
+    {/if}
   </main>
 </div>
 
@@ -78,21 +98,23 @@
   .blocked-line { font-size: 1rem; color: #222; margin-bottom: 6px; }
   .domain { color: #05544E; font-weight: 600; }
   .blocked-desc { font-size: 1rem; color: #444; margin-bottom: 16px; }
-  .warning { color: #c62828; font-weight: 600; font-size: 1.05rem; margin-bottom: 28px; }
+  .deceptive { color: #05544E; }
+  .reported-by { font-size: 0.95rem; color: #05544E; margin-bottom: 8px; }
+  .info { font-size: 1.05rem; margin-bottom: 12px; }
 
   .actions { display: flex; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
   .btn {
-    border-radius: 8px; font-size: 0.95rem; font-weight: 700;
-    letter-spacing: 0.04em; padding: 13px 32px; cursor: pointer;
+    border-radius: 8px; font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.04em; padding: 10px 20px; cursor: pointer;
     border: none; text-transform: uppercase; transition: opacity 0.15s;
     font-family: inherit;
   }
   .btn:hover { opacity: 0.88; }
   .btn-back { background: #05544E; color: #fff; }
-  .btn-continue { background: transparent; color: #05544E; border: 2px solid #05544E; }
 
   .checkbox-label {
     display: flex; align-items: center; gap: 8px;
     font-size: 0.9rem; color: #555; cursor: pointer;
   }
+  .details-box { background: #fff; border: 1px solid #e8e8e8; padding: 18px; border-radius: 8px; margin-top: 12px; }
 </style>
