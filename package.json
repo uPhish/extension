@@ -1,0 +1,21 @@
+{
+  "name": "uPhish",
+  "description": "uPhish is a phishing prevention extension for Chromium and Firefox. No account, no tracking. ",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "CHROME_PATH=/opt/google/chrome/google-chrome wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "@wxt-dev/module-svelte": "^2.0.4",
+    "svelte": "^5.53.7",
+    "wxt": "^0.20.26"
+  }
+}
