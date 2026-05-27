@@ -56,15 +56,11 @@
       if (!tab?.url) { reportState = 'error'; return; }
       const url = new URL(tab.url);
       const domain = url.hostname.replace(/^www\./, '');
-      const body = JSON.stringify({
+      const params = new URLSearchParams({
         url: tab.url,
         useragent: navigator.userAgent,
       });
-      const res = await fetch('https://api.uphish.com/threatdb/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
+      const res = await fetch(`https://api.uphish.com/threatdb/report?${params}`, { method: 'POST' });
       reportState = res.ok ? 'done' : 'error';
     } catch {
       reportState = 'error';
